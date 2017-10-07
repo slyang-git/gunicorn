@@ -7,8 +7,10 @@ import urlparse
 
 from gunicorn.util import normalize_name
 
+
 class HttpParserError(Exception):
     """ error raised when parsing fail"""
+
 
 class HttpParser(object):
     
@@ -38,39 +40,41 @@ class HttpParser(object):
             return self.headers
         
         ld = len("\r\n\r\n")
-        i = buf.find("\r\n\r\n")
+        i = buf.find("\r\n\r\n")  # "\r\n\r\n"是http header的结尾符号
+        print(buf, ld, i)
         if i != -1:
             if i > 0:
                 r = buf[:i]
-            pos = i+ld
+            pos = i+ld   # http header 长度
             return self.finalize_headers(headers, r, pos)
         return -1
         
     def finalize_headers(self, headers, headers_str, pos):
         """ parse the headers """
         lines = headers_str.split("\r\n")
+        print(lines)
+        print(pos)
                 
         # parse first line of headers
         self._first_line(lines.pop(0))
-        
-        # parse headers. We silently ignore 
+        # parse headers. We silently ignore
         # bad headers' lines
         
         _headers = {}
         hname = ""
         for line in lines:
-            if line == "\t":
+            if line == "\t":  # 为何会有line为 "\t"的情况发生？
                 headers[hname] += line.strip()
             else:
                 try:
-                    hname =self._parse_headerl(_headers, line)
+                    hname = self._parse_headerl(_headers, line)
                 except ValueError: 
                     # bad headers
                     pass
         self.headers_dict = _headers
         headers.extend(list(_headers.items()))
         self.headers = headers
-        self._content_len = int(_headers.get('Content-Length',0))
+        self._content_len = int(_headers.get('Content-Length', 0))
         (_, _, self.path, self.query_string, self.fragment) = urlparse.urlsplit(self.raw_path)
         return pos
     
@@ -90,12 +94,13 @@ class HttpParser(object):
         self.version = version
         self.method = method.upper()
         self.raw_path = path
-        
+
     def _parse_headerl(self, hdrs, line):
         """ parse header line"""
         name, value = line.split(":", 1)
+        # print(name, value)
         name = normalize_name(name.strip())
-        hdrs[name] = value.rsplit("\r\n",1)[0].strip()
+        hdrs[name] = value.rsplit("\r\n", 1)[0].strip()
         return name
       
     @property
@@ -112,8 +117,8 @@ class HttpParser(object):
     @property
     def is_chunked(self):
         """ is TE: chunked ?"""
-        transfert_encoding = self.headers_dict.get('Transfer-Encoding', False)
-        return (transfert_encoding == "chunked")
+        transfer_encoding = self.headers_dict.get('Transfer-Encoding', False)
+        return transfer_encoding == "chunked"
         
     @property
     def content_len(self):
@@ -160,7 +165,7 @@ class HttpParser(object):
         
     def trailing_header(self, data):
         i = data.find("\r\n\r\n")
-        return (i != -1)
+        return i != -1
         
     def filter_body(self, data):
         """ filter body and return a tuple:
@@ -184,4 +189,4 @@ class HttpParser(object):
                 data = ''
                 
         self.start_offset = 0
-        return (chunk, data)
+        return chunk, data

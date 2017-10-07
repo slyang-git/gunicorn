@@ -5,6 +5,7 @@
 
 from gunicorn.util import http_date, write, close
 
+
 class HttpResponse(object):
     
     def __init__(self, sock, response, req):
@@ -28,13 +29,15 @@ class HttpResponse(object):
         resp_head.append("Connection: close\r\n")        
         for name, value in self.headers.items():
             resp_head.append("%s: %s\r\n" % (name, value))
-        
+
+        # 向client回写http response header数据
         write(self.sock, "%s\r\n" % "".join(resp_head))
 
+        # 向client写body 数据
         for chunk in list(self.data):
             write(self.sock, chunk)
 
-        close(self.sock)
+        close(self.sock)  # 关闭connection
 
-        if hasattr(self.data, "close"):
+        if hasattr(self.data, "close"):  # 不太理解这里
             self.data.close()

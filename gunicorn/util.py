@@ -21,17 +21,23 @@ monthname = [None,
              'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+
 def close_on_exec(fd):
+    # 把FD_CLOEXEC的含义简单的总结一下：close on exec, 从字面意思即可理解为：如果对描述符设置了FD_CLOEXEC，
+    # 在使用execl调用执行的程序里，此描述符将在子进程中会被自动关闭，不能使用了。但是在父进程中仍然可以使用。
     flags = fcntl.fcntl(fd, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
     fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+
 
 def close(sock):
     try:
         sock.close()
     except socket.error:
         pass
-  
+
+
 def read_partial(sock, length):
+    # 每次读取length长度的数据
     while True:
         try:
             ret = select.select([sock.fileno()], [], [], 0)
@@ -50,8 +56,10 @@ def write(sock, data):
     i = 0
     while buf:
         try:
+            # On success, sock.send() return the number of characters sent.
+            # On error, -1 is returned, and errno is set appropriately.
             bytes = sock.send(buf)
-            if bytes < len(buf):
+            if bytes < len(buf):  # 说明没有一次性向client端写完
                 buf = buf[bytes:]
                 continue
             return len(data)
@@ -63,8 +71,9 @@ def write(sock, data):
 
 
 def normalize_name(name):
-    return  "-".join([w.lower().capitalize() for w in name.split("-")])
-    
+    return "-".join([w.lower().capitalize() for w in name.split("-")])
+
+
 def import_app(module):
     parts = module.rsplit(":", 1)
     if len(parts) == 1:

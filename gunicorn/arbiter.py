@@ -36,7 +36,7 @@ class Arbiter(object):
         self.address = address
         self.num_workers = num_workers
         self.modname = modname
-        self.timeout = 30
+        self.timeout = 10
         self.reexec_pid = 0
         self.pid = os.getpid()
         self.log = logging.getLogger(__name__)
@@ -64,7 +64,6 @@ class Arbiter(object):
             self.wakeup()
         else:
             self.log.warn("Ignoring rapid signaling: %s" % sig)
-        
 
     def listen(self, addr):
         if 'GUNICORN_FD' in os.environ:
@@ -101,7 +100,7 @@ class Arbiter(object):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.set_sockopts(sock)
         sock.bind(address)
-        sock.listen(2048)
+        sock.listen(2048)  # listen([backlog])
         return sock
         
     def set_sockopts(self, sock):
@@ -117,21 +116,26 @@ class Arbiter(object):
         self.manage_workers()
         while True:
             try:
+                # print('in arbiter')
                 self.reap_workers()
+
+                # 从信号队列中取信号
                 sig = self.SIG_QUEUE.pop(0) if len(self.SIG_QUEUE) else None
                 if sig is None:
                     self.sleep()
                     self.murder_workers()
                     self.manage_workers()
                     continue
-                
+
+                # 收到信号，处理信号
                 if sig not in self.SIG_NAMES:
                     self.log.info("Ignoring unknown signal: %s" % sig)
                     continue
                 
                 signame = self.SIG_NAMES.get(sig)
+                # 处理信号的handler
                 handler = getattr(self, "handle_%s" % signame, None)
-                if not handler:
+                if not handler:  # 没有找到对应的信号处理handler
                     self.log.error("Unhandled signal: %s" % signame)
                     continue
                 self.log.info("Handling signal: %s" % signame)
@@ -191,6 +195,7 @@ class Arbiter(object):
     
     def wakeup(self):
         # Wake up the arbiter
+        # 不太明白这个wakeup函数的作用
         try:
             os.write(self.PIPE[1], '.')
         except IOError, e:
@@ -199,7 +204,9 @@ class Arbiter(object):
                     
     def sleep(self):
         try:
+            # print('in arbiter sleep')
             ready = select.select([self.PIPE[0]], [], [], 1.0)
+            # print(ready)
             if not ready[0]:
                 return
             while os.read(self.PIPE[0], 1):
@@ -232,6 +239,10 @@ class Arbiter(object):
             os.execlp(sys.argv[0], *sys.argv)
 
     def murder_workers(self):
+        """
+        杀死worker，当worker对应的temp文件的更新时间大于timeout时间时，杀死worker
+        :return: 
+        """
         for (pid, worker) in list(self.WORKERS.items()):
             diff = time.time() - os.fstat(worker.tmp.fileno()).st_ctime
             if diff <= self.timeout:
@@ -240,6 +251,7 @@ class Arbiter(object):
             self.kill_worker(pid, signal.SIGKILL)
     
     def reap_workers(self):
+        """回收worker ？"""
         try:
             while True:
                 wpid, status = os.waitpid(-1, os.WNOHANG)
@@ -269,9 +281,12 @@ class Arbiter(object):
             if i in workers:
                 continue
 
+            # 通过worker的实例化代码可以发现，workers共用一个socket
             worker = Worker(i, self.pid, self.LISTENER, self.modname,
-                        self.timeout)
+                            self.timeout)
             pid = os.fork()
+
+            # pid == 0 表示在子进程中；pid != 0 表示在主进程中
             if pid != 0:
                 self.WORKERS[pid] = worker
                 continue
@@ -280,10 +295,9 @@ class Arbiter(object):
             worker_pid = os.getpid()
             try:
                 self.log.info("Worker %s booting" % worker_pid)
-                worker.run()
+                worker.run()  # worker
                 sys.exit(0)
             except SystemExit:
-                
                 raise
             except:
                 self.log.exception("Exception in worker process.")

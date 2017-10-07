@@ -17,6 +17,7 @@ LOG_LEVELS = {
     "debug": logging.DEBUG
 }
 
+
 def options():
     return [
         op.make_option('--host', dest='host', default='127.0.0.1',
@@ -30,6 +31,7 @@ def options():
         op.make_option('--log-file', dest='logfile', default='-',
             help='Log to a file. - is stdout. [%default]')
     ]
+
 
 def configure_logging(opts):
     handlers = []

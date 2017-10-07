@@ -20,8 +20,6 @@ normalize_name
 NORMALIZE_SPACE = re.compile(r'(?:\r\n)?[ \t]+')
 
 
-
-
 class RequestError(Exception):
     """ raised when something wrong happend"""
         
@@ -42,7 +40,6 @@ class HttpRequest(object):
         "SERVER_SOFTWARE": "gunicorn/%s" % __version__
     }
 
-
     def __init__(self, socket, client_address, server_address):
         self.socket = socket
         self.client_address = client_address
@@ -54,14 +51,14 @@ class HttpRequest(object):
         self.start_response_called = False
         self.log = logging.getLogger(__name__)
         
-        
     def read(self):
+        """读取client端的HTTP请求数据"""
         environ = {}
         headers = []
         buf = ""
-        buf = read_partial(self.socket, CHUNK_SIZE)
+        buf = read_partial(self.socket, CHUNK_SIZE)  # 每次读取CHUNK_SIZE = (16 * 1024)大小数据
         i = self.parser.filter_headers(headers, buf)
-        if i == -1 and buf:
+        if i == -1 and buf:  # 说明数据还没有一次性读完,需要多次读取完成
             while True:
                 data = read_partial(self.socket, CHUNK_SIZE)
                 if not data: break
@@ -69,11 +66,11 @@ class HttpRequest(object):
                 i = self.parser.filter_headers(headers, buf)
                 if i != -1: break
 
-
         self.log.debug("%s", self.parser.status)
 
         self.log.debug("Got headers:\n%s" % headers)
-        
+
+        # client端没有发送request body的时候 通知client继续发送body数据
         if self.parser.headers_dict.get('Except', '').lower() == "100-continue":
             self.socket.send("100 Continue\n")
             
@@ -109,7 +106,6 @@ class HttpRequest(object):
             key = 'HTTP_' + key.upper().replace('-', '_')
             if key not in ('HTTP_CONTENT_TYPE', 'HTTP_CONTENT_LENGTH'):
                 environ[key] = value
-
         return environ
         
     def start_response(self, status, response_headers):
